@@ -1,7 +1,7 @@
-from PyQt6.QtCore import QMimeData, Qt
-from PyQt6.QtWidgets import QLabel, QLineEdit, QWidget, QMainWindow, QPushButton, QHBoxLayout, QTableWidget, \
+from PySide6.QtCore import QMimeData, Qt
+from PySide6.QtWidgets import QLabel, QLineEdit, QWidget, QMainWindow, QPushButton, QHBoxLayout, QTableWidget, \
     QTabWidget, QStatusBar, QTableWidgetItem, QApplication,QMenu
-from PyQt6.QtGui import QPixmap, QIcon, QCursor, QColor
+from PySide6.QtGui import QPixmap, QIcon, QCursor, QColor
 from sqlite import open_db, close_db, read_block, write_stream, read_stream
 import numpy as np
 import prop
@@ -11,6 +11,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import modules
+
 
 class Window(QMainWindow):
     def __init__(self):
@@ -764,7 +765,7 @@ class Window(QMainWindow):
                     KPD = (read_block('T')["Q"] - read_block('MC')["Q"] - read_block('RC')["Q"]) / read_block('RHE')["Q"]
                     self.kpd_output.setText(str(round(KPD, tolerance_exp+2)))
 
-                    print(P, p_out, x, KPD)
+                    print(round(P, 5), round(p_out, tolerance_exp + 2), round(x, tolerance_exp + 2), round(KPD, tolerance_exp + 2))
                     self.kpd_output.setText(str(round(KPD, tolerance_exp + 2)))
 
                     self.optimus_table.setItem(i, 6, QTableWidgetItem(str(round(KPD, 5))))
@@ -837,6 +838,7 @@ class Window(QMainWindow):
     def timer(self):
         while self.time_flag is True:
             self.status_time.setText(f'Время расчёта: {(datetime.datetime.now() - self.time_start).seconds} с')
+            self.update()
             time.sleep(0.5)
 
     def calc(self):
