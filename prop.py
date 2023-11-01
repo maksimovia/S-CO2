@@ -4,7 +4,7 @@ RP = REFPROPFunctionLibrary('C:/Program Files (x86)/REFPROP')
 iUnits = 21
 iMass = 2
 iFlag = 0
-RP.PREOSdll(0)
+RP.PREOSdll(2)
 
 
 def t_p(t, p, fluid):

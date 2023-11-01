@@ -1,21 +1,11 @@
 import prop
 from sqlite import read_stream, write_stream, write_block
 import numpy as np
-
-
-# def root(func, a, b, root_tol):
-#     while abs(func(a) - func(b)) > root_tol:
-#         x = a + (b - a) / 2
-#         if func(a) * func(x) < 0:
-#             b = x
-#         else:
-#             a = x
-#     return x
-
-
 from scipy import optimize
-def root(func, a, b, root_tol):
-    x = float(optimize.root(func, a, tol=root_tol).x)
+
+
+def root(func, a, root_tol):
+    x = float(optimize.root(func, a, tol = root_tol).x)
     return x
 
 
@@ -36,11 +26,7 @@ class RHE:
         P11 = read_stream(self.stream11)['P']
         H11 = read_stream(self.stream11)['H']
         G1 = read_stream(self.stream11)['G']
-        fluid1 = read_stream(self.stream11)['X']
-
-        if fluid1 == 'Pb':
-            cp = 0.148
-
+        cp = float(read_stream(self.stream11)['X'])
         T12 = self.T12
         H12 = T12*cp
 
@@ -71,10 +57,8 @@ class RHE:
             DT = t1 - t2
             min_dt = min(DT)
             return self.dT - min_dt
-        G2 = root(G2_func, 100, 100000, self.root_tolerance)
 
-        # if read_stream('HTR-RHE')['G'] is not None:
-        #     G2 = (G2 + read_stream('HTR-RHE')['G'])/2   ###Обратная связь
+        G2 = root(G2_func, 0.1*G1*(H11-H12)/(prop.t_p(T11, P21, fluid2)["H"]-H21), self.root_tolerance)
 
         t1 = np.zeros(self.h_steps + 1)
         t2 = np.zeros(self.h_steps + 1)
@@ -103,7 +87,7 @@ class RHE:
         H22 = prop.t_p(T22, P21, fluid2)["H"]
         S22 = prop.t_p(T22, P21, fluid2)["S"]
         Q22 = prop.t_p(T22, P21, fluid2)["Q"]
-        write_stream(self.stream12, T12, P11, H12, S12, Q12, G1, fluid1)
+        write_stream(self.stream12, T12, P11, H12, S12, Q12, G1, cp)
         write_stream(self.stream22, T22, P21, H22, S22, Q22, G2, fluid2)
         write_block('RHE', Q[-1], min_dt)
         pass
@@ -204,7 +188,24 @@ class HTR:
             min_dt = min(DT)
             return self.dt - min_dt
 
-        T22 = root(T22_func, T21, read_stream('RHE-R')['T']-self.dt_RHE, self.root_tolerance)
+        if T21 > T11:
+            T22 = T21
+            T12 = T11
+            H12 = prop.t_p(T12, P11, fluid1)["H"]
+            S12 = prop.t_p(T12, P11, fluid1)["S"]
+            Q12 = prop.t_p(T12, P11, fluid1)["Q"]
+            H22 = prop.t_p(T22, P21, fluid2)["H"]
+            S22 = prop.t_p(T22, P21, fluid2)["S"]
+            Q22 = prop.t_p(T22, P21, fluid2)["Q"]
+            write_stream(self.stream12, T12, P11, H12, S12, Q12, G1, fluid1)
+            write_stream(self.stream22, T22, P21, H22, S22, Q22, G2, fluid2)
+            write_block('HTR', 0, 0)
+            pass
+
+        T22 = root(T22_func, 1, self.root_tolerance)
+        if T22 > read_stream('RHE-R')['T']-self.dt_RHE:
+            T22 = read_stream('RHE-R')['T']-self.dt_RHE
+
         H22 = prop.t_p(T22, P21, fluid2)["H"]
         t1 = np.zeros(self.h_steps + 1)
         t2 = np.zeros(self.h_steps + 1)
@@ -235,7 +236,6 @@ class HTR:
         H22 = prop.t_p(T22, P21, fluid2)["H"]
         S22 = prop.t_p(T22, P21, fluid2)["S"]
         Q22 = prop.t_p(T22, P21, fluid2)["Q"]
-
         write_stream(self.stream12, T12, P11, H12, S12, Q12, G1, fluid1)
         write_stream(self.stream22, T22, P21, H22, S22, Q22, G2, fluid2)
         write_block('HTR', Q[-1], min_dt)
@@ -289,7 +289,21 @@ class LTR:
             min_dt = min(DT)
             return self.dt - min_dt
 
-        T22 = root(T22_func, T21, T11, self.root_tolerance)
+        if T21 < T11:
+            T22 = root(T22_func, 1, self.root_tolerance)
+        else:
+            T22 = T21
+            T12 = T11
+            H12 = prop.t_p(T12, P11, fluid1)["H"]
+            S12 = prop.t_p(T12, P11, fluid1)["S"]
+            Q12 = prop.t_p(T12, P11, fluid1)["Q"]
+            H22 = prop.t_p(T22, P21, fluid2)["H"]
+            S22 = prop.t_p(T22, P21, fluid2)["S"]
+            Q22 = prop.t_p(T22, P21, fluid2)["Q"]
+            write_stream(self.stream12, T12, P11, H12, S12, Q12, G1, fluid1)
+            write_stream(self.stream22, T22, P21, H22, S22, Q22, G2, fluid2)
+            write_block('LTR', 0, 0)
+
         H22 = prop.t_p(T22, P21, fluid2)["H"]
         t1 = np.zeros(self.h_steps + 1)
         t2 = np.zeros(self.h_steps + 1)
@@ -386,7 +400,7 @@ class C:
             DT = t1 - t2
             min_dt = min(DT)
             return self.dt - min_dt
-        G2 = root(G2_func, 1000, 100000, self.root_tolerance)
+        G2 = root(G2_func, G1*(H11-H12)/(prop.t_p(T12, P2, fluid2)["H"]-H21), self.root_tolerance)
 
         t1 = np.zeros(self.h_steps + 1)
         t2 = np.zeros(self.h_steps + 1)

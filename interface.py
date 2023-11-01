@@ -1,6 +1,6 @@
 from PySide6.QtCore import QMimeData, Qt
 from PySide6.QtWidgets import QLabel, QLineEdit, QWidget, QMainWindow, QPushButton, QHBoxLayout, QTableWidget, \
-    QTabWidget, QStatusBar, QTableWidgetItem, QApplication,QMenu
+    QTabWidget, QStatusBar, QTableWidgetItem, QApplication, QMenu, QComboBox
 from PySide6.QtGui import QPixmap, QIcon, QCursor, QColor
 from sqlite import open_db, close_db, read_block, write_stream, read_stream
 import numpy as np
@@ -11,6 +11,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 import modules
+from scipy import optimize
 
 
 class Window(QMainWindow):
@@ -49,13 +50,13 @@ class Window(QMainWindow):
 
         self.reactor_tin_input = QLineEdit(parent=self.tab1)
         self.reactor_tin_input.setGeometry(50+750, 425, 50, 20)
-        self.reactor_tin_input.setText('540')
+        self.reactor_tin_input.setText('485')
         self.reactor_tin_txt = QLabel('T =', parent=self.tab1)
         self.reactor_tin_txt.setGeometry(30+750, 425, 20, 20)
 
         self.reactor_tout_input = QLineEdit(parent=self.tab1)
         self.reactor_tout_input.setGeometry(50+750, 560, 50, 20)
-        self.reactor_tout_input.setText('400')
+        self.reactor_tout_input.setText('340')
         self.reactor_tout_txt = QLabel('T =', parent=self.tab1)
         self.reactor_tout_txt.setGeometry(30+750, 560, 20, 20)
 
@@ -67,25 +68,19 @@ class Window(QMainWindow):
 
         self.reactor_g_input = QLineEdit(parent=self.tab1)
         self.reactor_g_input.setGeometry(50+865, 330, 50, 20)
-        self.reactor_g_input.setText('33784')
+        self.reactor_g_input.setText('13047.53')
         self.reactor_g_txt = QLabel('G =', parent=self.tab1)
         self.reactor_g_txt.setGeometry(30+865, 330, 20, 20)
 
-        self.reactor_x_input = QLineEdit(parent=self.tab1)
-        self.reactor_x_input.setGeometry(50+865, 310, 50, 20)
-        self.reactor_x_input.setText('Pb')
-        self.reactor_x_txt = QLabel('X =', parent=self.tab1)
-        self.reactor_x_txt.setGeometry(30+865, 310, 20, 20)
-
         self.reactor_cp_input = QLineEdit(parent=self.tab1)
-        self.reactor_cp_input.setGeometry(50+950, 310, 50, 20)
+        self.reactor_cp_input.setGeometry(50+865, 310, 50, 20)
         self.reactor_cp_input.setText('0.148')
         self.reactor_cp_txt = QLabel('cp =', parent=self.tab1)
-        self.reactor_cp_txt.setGeometry(30+950, 310, 20, 20)
+        self.reactor_cp_txt.setGeometry(30+865, 310, 20, 20)
 
         self.cooler_tcool_input = QLineEdit(parent=self.tab1)
         self.cooler_tcool_input.setGeometry(175, 145, 50, 20)
-        self.cooler_tcool_input.setText('33')
+        self.cooler_tcool_input.setText('32')
         self.cooler_tcool_txt = QLabel('T =', parent=self.tab1)
         self.cooler_tcool_txt.setGeometry(175-20, 145, 20, 20)
 
@@ -149,7 +144,6 @@ class Window(QMainWindow):
         self.T_KPD_txt = QLabel('η =', parent=self.tab1)
         self.T_KPD_txt.setGeometry(650, 300, 25, 20)
 
-
         self.cycle_pmin_input = QLineEdit(parent=self.tab1)
         self.cycle_pmin_input.setGeometry(1100, 100, 180, 25)
         self.cycle_pmin_input.setText('8')
@@ -158,13 +152,13 @@ class Window(QMainWindow):
 
         self.cycle_pmax_input = QLineEdit(parent=self.tab1)
         self.cycle_pmax_input.setGeometry(1100, 150, 180, 25)
-        self.cycle_pmax_input.setText('28')
+        self.cycle_pmax_input.setText('25')
         self.cycle_pmax_input_txt = QLabel('Максимальное давление:', parent=self.tab1)
         self.cycle_pmax_input_txt.setGeometry(1100, 125, 180, 25)
 
         self.cycle_xr_input = QLineEdit(parent=self.tab1)
         self.cycle_xr_input.setGeometry(1100, 200, 180, 25)
-        self.cycle_xr_input.setText('0.9')
+        self.cycle_xr_input.setText('0.65')
         self.cycle_xr_input_txt = QLabel('Доля рекомпрессии:', parent=self.tab1)
         self.cycle_xr_input_txt.setGeometry(1100, 175, 180, 25)
 
@@ -176,7 +170,7 @@ class Window(QMainWindow):
 
         self.cycle_tolerance_input = QLineEdit(parent=self.tab1)
         self.cycle_tolerance_input.setGeometry(1100, 300, 180, 25)
-        self.cycle_tolerance_input.setText('10**-4')
+        self.cycle_tolerance_input.setText('10**-5')
         self.cycle_tolerance_input_txt = QLabel('Сходимость по балансу:', parent=self.tab1)
         self.cycle_tolerance_input_txt.setGeometry(1100, 275, 180, 25)
 
@@ -362,74 +356,124 @@ class Window(QMainWindow):
         self.stop_button.clicked.connect(self.stop)
         self.stop_button.setGeometry(1100, 600, 180, 25)
 
-
         # ###############tab-3############### #
+        self.sens_txt = QLabel('Расчёт чувствительности:', parent=self.tab3)
+        self.sens_txt.setGeometry(50, 50, 180, 25)
+
         self.opt_pkmin_txt = QLabel('Начальное Pк:', parent=self.tab3)
-        self.opt_pkmin_txt.setGeometry(300, 75 + 100, 180, 25)
+        self.opt_pkmin_txt.setGeometry(300, 75, 180, 25)
         self.opt_pkmin = QLineEdit(parent=self.tab3)
-        self.opt_pkmin.setGeometry(300, 100 + 100, 180, 25)
-        self.opt_pkmin.setText('8')
+        self.opt_pkmin.setGeometry(300, 100, 180, 25)
+        self.opt_pkmin.setText('7.6')
 
         self.opt_pkmax_txt = QLabel('Конечное Pк:', parent=self.tab3)
-        self.opt_pkmax_txt.setGeometry(300, 125 + 100, 180, 25)
+        self.opt_pkmax_txt.setGeometry(300, 125, 180, 25)
         self.opt_pkmax = QLineEdit(parent=self.tab3)
-        self.opt_pkmax.setGeometry(300, 150 + 100, 180, 25)
-        self.opt_pkmax.setText('10')
+        self.opt_pkmax.setGeometry(300, 150, 180, 25)
+        self.opt_pkmax.setText('7.65')
 
         self.opt_pkstep_txt = QLabel('Шаг изменения Pк:', parent=self.tab3)
-        self.opt_pkstep_txt.setGeometry(300, 175 + 100, 180, 25)
+        self.opt_pkstep_txt.setGeometry(300, 175, 180, 25)
         self.opt_pkstep = QLineEdit(parent=self.tab3)
-        self.opt_pkstep.setGeometry(300, 200 + 100, 180, 25)
+        self.opt_pkstep.setGeometry(300, 200, 180, 25)
         self.opt_pkstep.setText('0.1')
 
         self.opt_p0min_txt = QLabel('Начальное P0:', parent=self.tab3)
-        self.opt_p0min_txt.setGeometry(50, 75 + 100, 180, 25)
+        self.opt_p0min_txt.setGeometry(50, 75, 180, 25)
         self.opt_p0min = QLineEdit(parent=self.tab3)
-        self.opt_p0min.setGeometry(50, 100 + 100, 180, 25)
-        self.opt_p0min.setText('20')
+        self.opt_p0min.setGeometry(50, 100, 180, 25)
+        self.opt_p0min.setText('15')
 
         self.opt_p0max_txt = QLabel('Конечное P0:', parent=self.tab3)
-        self.opt_p0max_txt.setGeometry(50, 125 + 100, 180, 25)
+        self.opt_p0max_txt.setGeometry(50, 125, 180, 25)
         self.opt_p0max = QLineEdit(parent=self.tab3)
-        self.opt_p0max.setGeometry(50, 150 + 100, 180, 25)
+        self.opt_p0max.setGeometry(50, 150, 180, 25)
         self.opt_p0max.setText('30')
 
         self.opt_p0step_txt = QLabel('Шаг изменения P0:', parent=self.tab3)
-        self.opt_p0step_txt.setGeometry(50, 175 + 100, 180, 25)
+        self.opt_p0step_txt.setGeometry(50, 175, 180, 25)
         self.opt_p0step = QLineEdit(parent=self.tab3)
-        self.opt_p0step.setGeometry(50, 200 + 100, 180, 25)
+        self.opt_p0step.setGeometry(50, 200, 180, 25)
         self.opt_p0step.setText('1')
 
         self.opt_xmin_txt = QLabel('Начальное x:', parent=self.tab3)
-        self.opt_xmin_txt.setGeometry(600, 75 + 100, 180, 25)
+        self.opt_xmin_txt.setGeometry(600, 75, 180, 25)
         self.opt_xmin = QLineEdit(parent=self.tab3)
-        self.opt_xmin.setGeometry(600, 100 + 100, 180, 25)
+        self.opt_xmin.setGeometry(600, 100, 180, 25)
         self.opt_xmin.setText('0.5')
 
         self.opt_xmax_txt = QLabel('Конечное x:', parent=self.tab3)
-        self.opt_xmax_txt.setGeometry(600, 125 + 100, 180, 25)
+        self.opt_xmax_txt.setGeometry(600, 125, 180, 25)
         self.opt_xmax = QLineEdit(parent=self.tab3)
-        self.opt_xmax.setGeometry(600, 150 + 100, 180, 25)
+        self.opt_xmax.setGeometry(600, 150, 180, 25)
         self.opt_xmax.setText('1')
 
         self.opt_xstep_txt = QLabel('Шаг изменения x:', parent=self.tab3)
-        self.opt_xstep_txt.setGeometry(600, 175 + 100, 180, 25)
+        self.opt_xstep_txt.setGeometry(600, 175, 180, 25)
         self.opt_xstep = QLineEdit(parent=self.tab3)
-        self.opt_xstep.setGeometry(600, 200 + 100, 180, 25)
-        self.opt_xstep.setText('0.05')
+        self.opt_xstep.setGeometry(600, 200, 180, 25)
+        self.opt_xstep.setText('0.01')
 
-
-        self.start_optimus_button = QPushButton("го", parent=self.tab3)
+        self.start_optimus_button = QPushButton("Расчёт всех точек", parent=self.tab3)
         self.start_optimus_button.clicked.connect(self.optimus_start)
-        self.start_optimus_button.setGeometry(60, 350, 175, 25)
+        self.start_optimus_button.setGeometry(50, 250, 175, 25)
 
         self.stop_optimus_button = QPushButton("стоп", parent=self.tab3)
         self.stop_optimus_button.clicked.connect(self.stop)
-        self.stop_optimus_button.setGeometry(60, 400, 175, 25)
+        self.stop_optimus_button.setGeometry(50, 300, 175, 25)
 
         self.skip_optimus_button = QPushButton("Пропуск итерации", parent=self.tab3)
         self.skip_optimus_button.clicked.connect(self.skip_iter)
-        self.skip_optimus_button.setGeometry(60, 450, 175, 25)
+        self.skip_optimus_button.setGeometry(50, 350, 175, 25)
+
+
+        ########
+        self.sens_txt = QLabel('Оптимизация в интервале:', parent=self.tab3)
+        self.sens_txt.setGeometry(50, 400, 180, 25)
+
+        self.sens_pkmin_txt = QLabel('Нижняя граница Pк:', parent=self.tab3)
+        self.sens_pkmin_txt.setGeometry(300, 425, 180, 25)
+        self.sens_pkmin = QLineEdit(parent=self.tab3)
+        self.sens_pkmin.setGeometry(300, 450, 180, 25)
+        self.sens_pkmin.setText('7.6')
+
+        self.sens_pkmax_txt = QLabel('Верхняя граница Pк:', parent=self.tab3)
+        self.sens_pkmax_txt.setGeometry(300, 475, 180, 25)
+        self.sens_pkmax = QLineEdit(parent=self.tab3)
+        self.sens_pkmax.setGeometry(300, 500, 180, 25)
+        self.sens_pkmax.setText('8')
+
+        self.sens_p0min_txt = QLabel('Нижняя граница P0:', parent=self.tab3)
+        self.sens_p0min_txt.setGeometry(50, 425, 180, 25)
+        self.sens_p0min = QLineEdit(parent=self.tab3)
+        self.sens_p0min.setGeometry(50, 450, 180, 25)
+        self.sens_p0min.setText('20')
+
+        self.sens_p0max_txt = QLabel('Верхняя граница P0:', parent=self.tab3)
+        self.sens_p0max_txt.setGeometry(50, 475, 180, 25)
+        self.sens_p0max = QLineEdit(parent=self.tab3)
+        self.sens_p0max.setGeometry(50, 500, 180, 25)
+        self.sens_p0max.setText('30')
+
+        self.sens_xmin_txt = QLabel('Нижняя граница x:', parent=self.tab3)
+        self.sens_xmin_txt.setGeometry(600, 425, 180, 25)
+        self.sens_xmin = QLineEdit(parent=self.tab3)
+        self.sens_xmin.setGeometry(600, 450, 180, 25)
+        self.sens_xmin.setText('0.6')
+
+        self.sens_xmax_txt = QLabel('Верхняя граница x:', parent=self.tab3)
+        self.sens_xmax_txt.setGeometry(600, 475, 180, 25)
+        self.sens_xmax = QLineEdit(parent=self.tab3)
+        self.sens_xmax.setGeometry(600, 500, 180, 25)
+        self.sens_xmax.setText('0.8')
+
+        self.start_optimization_button = QPushButton("Оптимизация", parent=self.tab3)
+        self.start_optimization_button.clicked.connect(self.start_optimization)
+        self.start_optimization_button.setGeometry(50, 550, 175, 25)
+
+        self.start_optimization_list = QComboBox(parent=self.tab3)
+        self.start_optimization_list.addItems(["Метод Пауэлла", "Метод Нелдера-Мида"])
+        self.start_optimization_list.setGeometry(50, 580, 175, 25)
 
         self.optimus_table = QTableWidget(parent=self.tab3)
         self.optimus_table.setGeometry(900, 50, 415, 400)
@@ -505,11 +549,39 @@ class Window(QMainWindow):
         self.thread_timer = Thread(target=self.timer)
         self.thread_timer.start()
 
+    def start_optimization(self):
+        print('start optiz')
+        self.balance_ax.clear()
+        self.balance_ax.set_title('Баланс')
+        self.balance_ax.set_xlabel('Итерация')
+        self.balance_ax.semilogy()
+
+        self.balance_ax.grid(True)
+        self.balance_cumm = []
+        self.balance_ax.plot(self.balance_cumm)
+        self.balance_ax.set_ylim([float(eval(self.cycle_tolerance_input.text())) / 10, 1])
+        self.balance_ax.axhline(float(eval(self.cycle_tolerance_input.text())), color='red', linestyle='--')
+
+        self.graph_balance.draw()
+        self.graph_balance.flush_events()
+
+        self.status_img.setText('⏳')
+        self.status_txt.setText('Запущен расчёт')
+        self.kpd_output.setText(" ")
+        self.time_flag = True
+        self.time_start = datetime.datetime.now()
+        self.calc_Flag = True
+        self.opt_iter_Flag = True
+        self.thread_calc = Thread(target=self.calc_optimization)
+        self.thread_calc.start()
+        self.thread_timer = Thread(target=self.timer)
+        self.thread_timer.start()
+
+
     def calc_optimus(self):
         Tin_hot = float(self.reactor_tin_input.text())
         Tout_hot = float(self.reactor_tout_input.text())
         P_hot = float(self.reactor_p_input.text())
-        fluid_hot = self.reactor_x_input.text()
         cp_hot = float(self.reactor_cp_input.text())
         G_hot = float(self.reactor_g_input.text())
         fluid = self.cycle_x_input.text()
@@ -539,9 +611,7 @@ class Window(QMainWindow):
 
         xrmin = float(self.opt_xmin.text())
         xrmax = float(self.opt_xmax.text())
-        xrstep =float(self.opt_xstep.text())
-
-
+        xrstep = float(self.opt_xstep.text())
 
         i = 0
         for P in np.arange(P0min,P0max,P0step):
@@ -580,7 +650,7 @@ class Window(QMainWindow):
                     self.optimus_table.item(i, 6).setBackground(QColor(0, 204, 102))
 
                     open_db()
-                    write_stream('R-RHE', Tin_hot, P_hot, Tin_hot * cp_hot, 0, 0, G_hot, fluid_hot)
+                    write_stream('R-RHE', Tin_hot, P_hot, Tin_hot * cp_hot, 0, 0, G_hot, cp_hot)
                     write_stream('HTR-RHE', Tout_hot - dt_RHE, P, prop.t_p(Tout_hot - dt_RHE, P, fluid)['H'],
                                  prop.t_p(Tout_hot - dt_RHE, P, fluid)['S'], prop.t_p(Tout_hot - dt_RHE, P, fluid)['Q'], 1000,
                                  fluid)
@@ -683,7 +753,6 @@ class Window(QMainWindow):
 
                         write_stream('IN-C', Tcond, Pcond, prop.t_p(Tfcond, Pcond, fluid_cond)['H'],
                                      prop.t_p(Tfcond, Pcond, fluid_cond)['S'], 0, 1000, fluid_cond)
-                        #не вывожу холодный
 
                         C.calc()
 
@@ -765,7 +834,7 @@ class Window(QMainWindow):
                     KPD = (read_block('T')["Q"] - read_block('MC')["Q"] - read_block('RC')["Q"]) / read_block('RHE')["Q"]
                     self.kpd_output.setText(str(round(KPD, tolerance_exp+2)))
 
-                    print(round(P, 5), round(p_out, tolerance_exp + 2), round(x, tolerance_exp + 2), round(KPD, tolerance_exp + 2))
+                    print(P, p_out, x, KPD)
                     self.kpd_output.setText(str(round(KPD, tolerance_exp + 2)))
 
                     self.optimus_table.setItem(i, 6, QTableWidgetItem(str(round(KPD, 5))))
@@ -838,7 +907,6 @@ class Window(QMainWindow):
     def timer(self):
         while self.time_flag is True:
             self.status_time.setText(f'Время расчёта: {(datetime.datetime.now() - self.time_start).seconds} с')
-            self.update()
             time.sleep(0.5)
 
     def calc(self):
@@ -846,7 +914,6 @@ class Window(QMainWindow):
         Tin_hot = float(self.reactor_tin_input.text())
         Tout_hot = float(self.reactor_tout_input.text())
         P_hot = float(self.reactor_p_input.text())
-        fluid_hot = self.reactor_x_input.text()
         cp_hot = float(self.reactor_cp_input.text())
         G_hot = float(self.reactor_g_input.text())
         fluid = self.cycle_x_input.text()
@@ -870,7 +937,7 @@ class Window(QMainWindow):
         tolerance_exp = abs(int(np.log10(cycle_tolerance)))
 
         open_db()
-        write_stream('R-RHE', Tin_hot, P_hot, Tin_hot * cp_hot, 0, 0, G_hot, fluid_hot)
+        write_stream('R-RHE', Tin_hot, P_hot, Tin_hot * cp_hot, 0, 0, G_hot, cp_hot)
         write_stream('HTR-RHE', Tout_hot - dt_RHE, P, prop.t_p(Tout_hot - dt_RHE, P, fluid)['H'],
                      prop.t_p(Tout_hot - dt_RHE, P, fluid)['S'], prop.t_p(Tout_hot - dt_RHE, P, fluid)['Q'], 1000,
                      fluid)
@@ -973,7 +1040,6 @@ class Window(QMainWindow):
 
             write_stream('IN-C', Tcond, Pcond, prop.t_p(Tfcond, Pcond, fluid_cond)['H'],
                          prop.t_p(Tfcond, Pcond, fluid_cond)['S'], 0, 1000, fluid_cond)
-            #не вывожу холодный
 
             C.calc()
 
@@ -1042,11 +1108,313 @@ class Window(QMainWindow):
             if balance < cycle_tolerance:
                 break
         KPD = (read_block('T')["Q"] - read_block('MC')["Q"] - read_block('RC')["Q"]) / read_block('RHE')["Q"]
-        print(P,p_out,x, KPD)
+        print(P, p_out, x, KPD)
         self.kpd_output.setText(str(round(KPD, tolerance_exp+2)))
         close_db()
 
+        self.time_flag = False
+        if self.calc_Flag is True:
+            self.status_img.setText('✔️')
+            self.status_txt.setText('Расчёт завершён успешно')
+        else:
+            self.status_img.setText('🛑')
+            self.status_txt.setText('Расчёт остановлен')
+        print('end calc')
 
+
+    def start(self):
+        self.tab_menu.setCurrentIndex(1)
+        self.balance_ax.clear()
+        self.balance_ax.set_title('Баланс')
+        self.balance_ax.set_xlabel('Итерация')
+        self.balance_ax.semilogy()
+        self.balance_ax.set_ylim([float(eval(self.cycle_tolerance_input.text())) / 10, 1])
+        self.balance_ax.axhline(float(eval(self.cycle_tolerance_input.text())), color='red', linestyle='--')
+
+        self.balance_ax.grid(True)
+        self.balance_cumm = []
+        self.balance_ax.plot(self.balance_cumm)
+        self.graph_balance.draw()
+        self.graph_balance.flush_events()
+
+        print('start')
+        self.status_img.setText('⏳')
+        self.status_txt.setText('Запущен расчёт')
+        self.kpd_output.setText(" ")
+
+        self.time_flag = True
+        self.time_start = datetime.datetime.now()
+
+        self.calc_Flag = True
+        self.thread_calc = Thread(target=self.calc)
+        self.thread_calc.start()
+
+        self.thread_timer = Thread(target=self.timer)
+        self.thread_timer.start()
+
+    def stop(self):
+        print('stop')
+        self.calc_Flag = False
+        self.status_img.setText('🛑')
+        self.status_txt.setText('Остановка расчёта')
+        if self.thread_calc.is_alive() is False:
+            self.status_img.setText('🛑')
+            self.status_txt.setText('Расчёт остановлен')
+
+    def timer(self):
+        while self.time_flag is True:
+            self.status_time.setText(f'Время расчёта: {(datetime.datetime.now() - self.time_start).seconds} с')
+            time.sleep(0.5)
+
+    def calc_optimization(self):
+        print('calc')
+        Tin_hot = float(self.reactor_tin_input.text())
+        Tout_hot = float(self.reactor_tout_input.text())
+        P_hot = float(self.reactor_p_input.text())
+        cp_hot = float(self.reactor_cp_input.text())
+        G_hot = float(self.reactor_g_input.text())
+        fluid = self.cycle_x_input.text()
+        h_steps = float(self.cycle_step_h.text())
+        fluid_cond = self.cooler_fluid_input.text()
+        Tcond = float(self.cooler_tcool_input.text())
+        Tfcond = float(self.cooler_tcool_in_input.text())
+        Pcond = float(self.cooler_pcool_in_input.text())
+        dt_RHE = float(self.RHE_dt_input.text())
+        dt_C = float(self.C_dt_input.text())
+        dt_HTR = float(self.HTR_dt_input.text())
+        dt_LTR = float(self.LTR_dt_input.text())
+        KPD_T = float(self.T_KPD_input.text())
+        KPD_MC = float(self.MC_KPD_input.text())
+        KPD_RC = float(self.RC_KPD_input.text())
+        cycle_tolerance = float(eval(self.cycle_tolerance_input.text()))
+        root_tolerance = float(eval(self.cycle_tolerance_root.text()))
+        tolerance_exp = abs(int(np.log10(cycle_tolerance)))
+
+        global i
+        i = 0
+        def cycle_calc(input):
+            P = input[0]
+            p_out = input[1]
+            x = input[2]
+
+            global i
+            self.optimus_table.setItem(i, 0, QTableWidgetItem(str(round(P, 5))))
+            self.optimus_table.setItem(i, 1, QTableWidgetItem(str(round(p_out, 5))))
+            self.optimus_table.setItem(i, 2, QTableWidgetItem(str(round(x, 5))))
+            self.optimus_table.setItem(i, 3, QTableWidgetItem(str()))
+            self.optimus_table.setItem(i, 4, QTableWidgetItem(str()))
+            self.optimus_table.setItem(i, 5, QTableWidgetItem(str()))
+            self.optimus_table.setItem(i, 6, QTableWidgetItem(str()))
+            self.optimus_table.item(i, 0).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 1).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 2).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 3).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 4).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 5).setBackground(QColor(0, 204, 102))
+            self.optimus_table.item(i, 6).setBackground(QColor(0, 204, 102))
+            self.optimus_table.insertRow(i+1)
+
+            open_db()
+            write_stream('R-RHE', Tin_hot, P_hot, Tin_hot * cp_hot, 0, 0, G_hot, cp_hot)
+            write_stream('HTR-RHE', Tout_hot - dt_RHE, P, prop.t_p(Tout_hot - dt_RHE, P, fluid)['H'],
+                         prop.t_p(Tout_hot - dt_RHE, P, fluid)['S'], prop.t_p(Tout_hot - dt_RHE, P, fluid)['Q'], 1000,
+                         fluid)
+
+            RHE = modules.RHE('R-RHE', 'RHE-R', 'HTR-RHE', 'RHE-T', Tout_hot, dt_RHE, root_tolerance, h_steps)
+            HTR = modules.HTR('T-HTR', 'HTR-LTR', 'MIX-HTR', 'HTR-RHE', dt_HTR, root_tolerance, h_steps, dt_RHE)
+            LTR = modules.LTR('HTR-LTR', 'LTR-SPLIT', 'MC-LTR', 'LTR-MIX', dt_LTR, root_tolerance, h_steps)
+            MC = modules.MC('C-MC', 'MC-LTR', P, KPD_MC)
+            RC = modules.RC('SPLIT-RC', 'RC-MIX', P, KPD_RC)
+            T = modules.Turb('RHE-T', 'T-HTR', p_out, KPD_T)
+            C = modules.C('SPLIT-C', 'C-MC', 'IN-C', 'C-OUT', Tcond, dt_C, root_tolerance, h_steps)
+            MIX = modules.MIX('LTR-MIX', 'RC-MIX', 'MIX-HTR')
+            SPLIT = modules.SPLIT('LTR-SPLIT', 'SPLIT-C', 'SPLIT-RC', x)
+
+            for j in range(9999):
+                if self.calc_Flag is False:
+                    self.time_flag = False
+                    self.status_img.setText('🛑')
+                    self.status_txt.setText('Расчёт остановлен')
+                    break
+
+                self.calc_R_IN_T.setText(f'T = {round(float(read_stream("R-RHE")["T"]), tolerance_exp)}')
+                self.calc_R_IN_P.setText(f'P = {round(float(read_stream("R-RHE")["P"]), tolerance_exp)}')
+                self.calc_R_IN_G.setText(f'G = {round(float(read_stream("R-RHE")["G"]), tolerance_exp)}')
+                self.calc_HTR_RHE_T.setText(f'T = {round(float(read_stream("HTR-RHE")["T"]), tolerance_exp)}')
+                self.calc_HTR_RHE_P.setText(f'P = {round(float(read_stream("HTR-RHE")["P"]), tolerance_exp)}')
+                self.calc_HTR_RHE_G.setText(f'G = {round(float(read_stream("HTR-RHE")["G"]), tolerance_exp)}')
+
+                RHE.calc()
+
+                self.calc_RHE_OUT_T.setText(f'T = {round(float(read_stream("RHE-R")["T"]), tolerance_exp)}')
+                self.calc_RHE_OUT_P.setText(f'P = {round(float(read_stream("RHE-R")["P"]), tolerance_exp)}')
+                self.calc_RHE_OUT_G.setText(f'G = {round(float(read_stream("RHE-R")["G"]), tolerance_exp)}')
+                self.calc_RHE_T_T.setText(f'T = {round(float(read_stream("RHE-T")["T"]), tolerance_exp)}')
+                self.calc_RHE_T_P.setText(f'P = {round(float(read_stream("RHE-T")["P"]), tolerance_exp)}')
+                self.calc_RHE_T_G.setText(f'G = {round(float(read_stream("RHE-T")["G"]), tolerance_exp)}')
+
+                self.calc_RHE_Q.setText(f'Q = {round(float(read_block("RHE")["Q"]), tolerance_exp)}')
+                self.calc_RHE_dT.setText(f'ΔT = {round(float(read_block("RHE")["DT"]), tolerance_exp)}')
+
+                T.calc()
+
+                self.calc_T_HTR_T.setText(f'T = {round(float(read_stream("T-HTR")["T"]), tolerance_exp)}')
+                self.calc_T_HTR_P.setText(f'P = {round(float(read_stream("T-HTR")["P"]), tolerance_exp)}')
+                self.calc_T_HTR_G.setText(f'G = {round(float(read_stream("T-HTR")["G"]), tolerance_exp)}')
+                self.calc_T_N.setText(f'N = {round(float(read_block("T")["Q"]), tolerance_exp)}')
+
+                if j == 0:
+                    write_stream('HTR-LTR', read_stream('T-HTR')['T'], read_stream('T-HTR')['P'], read_stream('T-HTR')['H'],
+                                 read_stream('T-HTR')['S'], read_stream('T-HTR')['Q'], read_stream('T-HTR')['G'],
+                                 read_stream('T-HTR')['X'])
+
+                    self.calc_HTR_LTR_T.setText(f'T = {round(float(read_stream("HTR-LTR")["T"]), tolerance_exp)}')
+                    self.calc_HTR_LTR_P.setText(f'P = {round(float(read_stream("HTR-LTR")["P"]), tolerance_exp)}')
+                    self.calc_HTR_LTR_G.setText(f'G = {round(float(read_stream("HTR-LTR")["G"]), tolerance_exp)}')
+
+                    write_stream('LTR-SPLIT', read_stream('T-HTR')['T'], read_stream('T-HTR')['P'],
+                                 read_stream('T-HTR')['H'], read_stream('T-HTR')['S'], read_stream('T-HTR')['Q'],
+                                 read_stream('T-HTR')['G'], read_stream('T-HTR')['X'])
+
+                    self.calc_LTR_SPLIT_T.setText(f'T = {round(float(read_stream("LTR-SPLIT")["T"]), tolerance_exp)}')
+                    self.calc_LTR_SPLIT_P.setText(f'P = {round(float(read_stream("LTR-SPLIT")["P"]), tolerance_exp)}')
+                    self.calc_LTR_SPLIT_G.setText(f'G = {round(float(read_stream("LTR-SPLIT")["G"]), tolerance_exp)}')
+                    self.calc_LTR_Q.setText(f'Q = 0')
+                    self.calc_LTR_dT.setText(f'ΔT = 0')
+                    self.calc_HTR_Q.setText(f'Q = 0')
+                    self.calc_HTR_dT.setText(f'ΔT = 0')
+
+                else:
+                    HTR.calc()
+
+                    self.calc_HTR_LTR_T.setText(f'T = {round(float(read_stream("HTR-LTR")["T"]), tolerance_exp)}')
+                    self.calc_HTR_LTR_P.setText(f'P = {round(float(read_stream("HTR-LTR")["P"]), tolerance_exp)}')
+                    self.calc_HTR_LTR_G.setText(f'G = {round(float(read_stream("HTR-LTR")["G"]), tolerance_exp)}')
+                    self.calc_HTR_RHE_T.setText(f'T = {round(float(read_stream("HTR-RHE")["T"]), tolerance_exp)}')
+                    self.calc_HTR_RHE_P.setText(f'P = {round(float(read_stream("HTR-RHE")["P"]), tolerance_exp)}')
+                    self.calc_HTR_RHE_G.setText(f'G = {round(float(read_stream("HTR-RHE")["G"]), tolerance_exp)}')
+                    self.calc_HTR_Q.setText(f'Q = {round(float(read_block("HTR")["Q"]), tolerance_exp)}')
+                    self.calc_HTR_dT.setText(f'ΔT = {round(float(read_block("HTR")["DT"]), tolerance_exp)}')
+
+                    LTR.calc()
+
+                    self.calc_LTR_SPLIT_T.setText(f'T = {round(float(read_stream("LTR-SPLIT")["T"]), tolerance_exp)}')
+                    self.calc_LTR_SPLIT_P.setText(f'P = {round(float(read_stream("LTR-SPLIT")["P"]), tolerance_exp)}')
+                    self.calc_LTR_SPLIT_G.setText(f'G = {round(float(read_stream("LTR-SPLIT")["G"]), tolerance_exp)}')
+                    self.calc_LTR_MIX_T.setText(f'T = {round(float(read_stream("LTR-MIX")["T"]), tolerance_exp)}')
+                    self.calc_LTR_MIX_P.setText(f'P = {round(float(read_stream("LTR-MIX")["P"]), tolerance_exp)}')
+                    self.calc_LTR_MIX_G.setText(f'G = {round(float(read_stream("LTR-MIX")["G"]), tolerance_exp)}')
+                    self.calc_LTR_Q.setText(f'Q = {round(float(read_block("LTR")["Q"]), tolerance_exp)}')
+                    self.calc_LTR_dT.setText(f'ΔT = {round(float(read_block("LTR")["DT"]), tolerance_exp)}')
+
+                SPLIT.calc()
+
+                self.calc_SPLIT_C_T.setText(f'T = {round(float(read_stream("SPLIT-C")["T"]), tolerance_exp)}')
+                self.calc_SPLIT_C_P.setText(f'P = {round(float(read_stream("SPLIT-C")["P"]), tolerance_exp)}')
+                self.calc_SPLIT_C_G.setText(f'G = {round(float(read_stream("SPLIT-C")["G"]), tolerance_exp)}')
+                self.calc_SPLIT_RC_T.setText(f'T = {round(float(read_stream("SPLIT-RC")["T"]), tolerance_exp)}')
+                self.calc_SPLIT_RC_P.setText(f'P = {round(float(read_stream("SPLIT-RC")["P"]), tolerance_exp)}')
+                self.calc_SPLIT_RC_G.setText(f'G = {round(float(read_stream("SPLIT-RC")["G"]), tolerance_exp)}')
+
+                write_stream('IN-C', Tcond, Pcond, prop.t_p(Tfcond, Pcond, fluid_cond)['H'],
+                             prop.t_p(Tfcond, Pcond, fluid_cond)['S'], 0, 1000, fluid_cond)
+
+                C.calc()
+
+                self.calc_C_MC_T.setText(f'T = {round(float(read_stream("C-MC")["T"]), tolerance_exp)}')
+                self.calc_C_MC_P.setText(f'P = {round(float(read_stream("C-MC")["P"]), tolerance_exp)}')
+                self.calc_C_MC_G.setText(f'G = {round(float(read_stream("C-MC")["G"]), tolerance_exp)}')
+                self.calc_C_Q.setText(f'Q = {round(float(read_block("C")["Q"]), tolerance_exp)}')
+                self.calc_C_dT.setText(f'ΔT = {round(float(read_block("C")["DT"]), tolerance_exp)}')
+
+                MC.calc()
+
+                self.calc_MC_LTR_T.setText(f'T = {round(float(read_stream("MC-LTR")["T"]), tolerance_exp)}')
+                self.calc_MC_LTR_P.setText(f'P = {round(float(read_stream("MC-LTR")["P"]), tolerance_exp)}')
+                self.calc_MC_LTR_G.setText(f'G = {round(float(read_stream("MC-LTR")["G"]), tolerance_exp)}')
+                self.calc_MC_N.setText(f'N = {round(float(read_block("MC")["Q"]), tolerance_exp)}')
+
+                RC.calc()
+
+                self.calc_RC_MIX_T.setText(f'T = {round(float(read_stream("RC-MIX")["T"]), tolerance_exp)}')
+                self.calc_RC_MIX_P.setText(f'P = {round(float(read_stream("RC-MIX")["P"]), tolerance_exp)}')
+                self.calc_RC_MIX_G.setText(f'G = {round(float(read_stream("RC-MIX")["G"]), tolerance_exp)}')
+                self.calc_RC_N.setText(f'N = {round(float(read_block("RC")["Q"]), tolerance_exp)}')
+
+                LTR.calc()
+                self.calc_LTR_SPLIT_T.setText(f'T = {round(float(read_stream("LTR-SPLIT")["T"]), tolerance_exp)}')
+                self.calc_LTR_SPLIT_P.setText(f'P = {round(float(read_stream("LTR-SPLIT")["P"]), tolerance_exp)}')
+                self.calc_LTR_SPLIT_G.setText(f'G = {round(float(read_stream("LTR-SPLIT")["G"]), tolerance_exp)}')
+                self.calc_LTR_MIX_T.setText(f'T = {round(float(read_stream("LTR-MIX")["T"]), tolerance_exp)}')
+                self.calc_LTR_MIX_P.setText(f'P = {round(float(read_stream("LTR-MIX")["P"]), tolerance_exp)}')
+                self.calc_LTR_MIX_G.setText(f'G = {round(float(read_stream("LTR-MIX")["G"]), tolerance_exp)}')
+                self.calc_LTR_Q.setText(f'Q = {round(float(read_block("LTR")["Q"]), tolerance_exp)}')
+                self.calc_LTR_dT.setText(f'ΔT = {round(float(read_block("LTR")["DT"]), tolerance_exp)}')
+
+                MIX.calc()
+                self.calc_MIX_HTR_T.setText(f'T = {round(float(read_stream("MIX-HTR")["T"]), tolerance_exp)}')
+                self.calc_MIX_HTR_P.setText(f'P = {round(float(read_stream("MIX-HTR")["P"]), tolerance_exp)}')
+                self.calc_MIX_HTR_G.setText(f'G = {round(float(read_stream("MIX-HTR")["G"]), tolerance_exp)}')
+
+                HTR.calc()
+                self.calc_HTR_LTR_T.setText(f'T = {round(float(read_stream("HTR-LTR")["T"]), tolerance_exp)}')
+                self.calc_HTR_LTR_P.setText(f'P = {round(float(read_stream("HTR-LTR")["P"]), tolerance_exp)}')
+                self.calc_HTR_LTR_G.setText(f'G = {round(float(read_stream("HTR-LTR")["G"]), tolerance_exp)}')
+                self.calc_HTR_RHE_T.setText(f'T = {round(float(read_stream("HTR-RHE")["T"]), tolerance_exp)}')
+                self.calc_HTR_RHE_P.setText(f'P = {round(float(read_stream("HTR-RHE")["P"]), tolerance_exp)}')
+                self.calc_HTR_RHE_G.setText(f'G = {round(float(read_stream("HTR-RHE")["G"]), tolerance_exp)}')
+                self.calc_HTR_Q.setText(f'Q = {round(float(read_block("HTR")["Q"]), tolerance_exp)}')
+                self.calc_HTR_dT.setText(f'ΔT = {round(float(read_block("HTR")["DT"]), tolerance_exp)}')
+
+                balance = abs(
+                    read_block('RHE')["Q"] + read_block('MC')["Q"] + read_block('RC')["Q"] - read_block('T')["Q"] -
+                    read_block('C')["Q"]) / read_block('RHE')["Q"]
+
+                self.calc_balance.setText(f"Δ = {balance}")
+                self.balance_cumm.append(balance)
+                self.balance_ax.clear()
+                self.balance_ax.set_title('Баланс')
+                self.balance_ax.set_xlabel('Итерация')
+                self.balance_ax.semilogy()
+                self.balance_ax.set_ylim([cycle_tolerance/10,1])
+                self.balance_ax.axhline(cycle_tolerance, color='red', linestyle='--')
+                self.balance_ax.plot(self.balance_cumm)
+                self.balance_ax.grid(True)
+                self.graph_balance.draw()
+                self.graph_balance.flush_events()
+
+                if balance < cycle_tolerance:
+                    break
+            KPD = (read_block('T')["Q"] - read_block('MC')["Q"] - read_block('RC')["Q"]) / read_block('RHE')["Q"]
+            print(P, p_out, x, KPD)
+            self.kpd_output.setText(str(round(KPD, tolerance_exp+2)))
+
+            self.optimus_table.setItem(i, 6, QTableWidgetItem(str(round(KPD, 5))))
+            self.optimus_table.setItem(i, 5, QTableWidgetItem(
+                str(round(float(read_block("LTR")["DT"]), tolerance_exp))))
+            self.optimus_table.setItem(i, 4, QTableWidgetItem(
+                str(round(float(read_block("HTR")["DT"]), tolerance_exp))))
+            self.optimus_table.setItem(i, 3, QTableWidgetItem(
+                str(round(float(read_block("RHE")["DT"]), tolerance_exp))))
+            self.optimus_table.item(i, 0).setBackground(QColor(255, 255, 255))
+            self.optimus_table.item(i, 1).setBackground(QColor(255, 255, 255))
+            self.optimus_table.item(i, 2).setBackground(QColor(255, 255, 255))
+
+            i = i + 1
+            close_db()
+
+            return -KPD
+
+        bnds = ((float(self.sens_p0min.text()),float(self.sens_p0max.text())),
+                (float(self.sens_pkmin.text()),float(self.sens_pkmax.text())),
+                (float(self.sens_xmin.text()),float(self.sens_xmax.text())))
+        mtd_id = self.start_optimization_list.currentIndex()
+        if mtd_id == 0:
+            mtd = 'Powell'
+        else:
+            mtd = 'Nelder-Mead'
+        res = optimize.minimize(cycle_calc, ((float(self.sens_p0min.text())+float(self.sens_p0max.text()))/2, (float(self.sens_pkmin.text())+float(self.sens_pkmax.text()))/2, (float(self.sens_xmin.text())+float(self.sens_xmax.text()))/2), method=mtd, tol=1e-4, bounds=bnds)
+        print(res)
         self.time_flag = False
         if self.calc_Flag is True:
             self.status_img.setText('✔️')
